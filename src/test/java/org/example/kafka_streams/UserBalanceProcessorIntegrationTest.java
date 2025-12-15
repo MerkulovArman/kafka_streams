@@ -1,5 +1,7 @@
 package org.example.kafka_streams;
 
+import io.confluent.kafka.schemaregistry.client.MockSchemaRegistryClient;
+import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
 import io.confluent.kafka.serializers.KafkaAvroDeserializer;
 import io.confluent.kafka.serializers.KafkaAvroSerializer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -13,8 +15,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.kafka.support.serializer.JsonDeserializer;
-import org.springframework.kafka.support.serializer.JsonSerializer;
 import org.springframework.kafka.test.EmbeddedKafkaBroker;
 import org.springframework.kafka.test.utils.KafkaTestUtils;
 
@@ -35,24 +35,25 @@ class UserBalanceProcessorIntegrationTest {
     private KafkaTemplate<String, User> kafkaTemplate;
     private org.apache.kafka.clients.consumer.Consumer<String, User> outputConsumer;
     private org.apache.kafka.clients.consumer.Consumer<String, User> errorConsumer;
+    private SchemaRegistryClient schemaRegistryClient;
 
     @BeforeEach
     void setUp() {
-        // Проверяем, что embeddedKafka не null
         assertThat(embeddedKafka).isNotNull();
 
-        // Настраиваем продюсера
+        schemaRegistryClient = new MockSchemaRegistryClient();
+
         Map<String, Object> producerProps = KafkaTestUtils.producerProps(embeddedKafka);
         producerProps.put("key.serializer", StringSerializer.class);
         producerProps.put("value.serializer", KafkaAvroSerializer.class);
         producerProps.put("schema.registry.url", "mock://test-url");
-        producerProps.put("auto.register.schemas", "false");
+        producerProps.put("auto.register.schemas", "true");
+        producerProps.put("specific.avro.reader", "true");
+        producerProps.put("schema.registry.client", schemaRegistryClient);
 
-        kafkaTemplate = new KafkaTemplate<>(
-                new DefaultKafkaProducerFactory<>(producerProps)
-        );
+        DefaultKafkaProducerFactory<String, User> producerFactory = new DefaultKafkaProducerFactory<>(producerProps);
+        kafkaTemplate = new KafkaTemplate<>(producerFactory);
 
-        // Настраиваем консьюмеры
         Map<String, Object> consumerProps = new HashMap<>();
         consumerProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, embeddedKafka.getBrokersAsString());
         consumerProps.put(ConsumerConfig.GROUP_ID_CONFIG, "test-group");
@@ -61,10 +62,11 @@ class UserBalanceProcessorIntegrationTest {
         consumerProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, KafkaAvroDeserializer.class);
         consumerProps.put("schema.registry.url", "mock://test-url");
         consumerProps.put("specific.avro.reader", "true");
-        producerProps.put("auto.register.schemas", "false");
+        consumerProps.put("schema.registry.client", schemaRegistryClient);
 
-        outputConsumer = new DefaultKafkaConsumerFactory<String, User>(consumerProps).createConsumer();
-        errorConsumer = new DefaultKafkaConsumerFactory<String, User>(consumerProps).createConsumer();
+        DefaultKafkaConsumerFactory<String, User> consumerFactory = new DefaultKafkaConsumerFactory<>(consumerProps);
+        outputConsumer = consumerFactory.createConsumer();
+        errorConsumer = consumerFactory.createConsumer();
 
         outputConsumer.subscribe(Collections.singletonList("users-output"));
         errorConsumer.subscribe(Collections.singletonList("users-error"));

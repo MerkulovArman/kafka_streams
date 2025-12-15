@@ -1,6 +1,5 @@
 package org.example.kafka_streams;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde;
 import lombok.RequiredArgsConstructor;
 import org.apache.kafka.clients.admin.NewTopic;
@@ -15,7 +14,6 @@ import org.springframework.kafka.annotation.EnableKafkaStreams;
 import org.springframework.kafka.annotation.KafkaStreamsDefaultConfiguration;
 import org.springframework.kafka.config.KafkaStreamsConfiguration;
 import org.springframework.kafka.config.TopicBuilder;
-import org.springframework.kafka.support.serializer.JsonSerde;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -73,6 +71,7 @@ public class KafkaConfig {
         SpecificAvroSerde<User> serde = new SpecificAvroSerde<>();
         Map<String, String> config = new HashMap<>();
         config.put("schema.registry.url", schemaRegistryUrl);
+        config.put("specific.avro.reader", "true");
         serde.configure(config, false);
         return serde;
     }

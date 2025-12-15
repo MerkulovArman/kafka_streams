@@ -14,6 +14,9 @@ spring:
       properties:
         commit.interval.ms: 1000
         cache.max.bytes.buffering: 0
+        schema.registry.url: http://localhost:8081
+        default.key.serde: org.apache.kafka.common.serialization.Serdes$StringSerde
+        default.value.serde: io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde
 
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer

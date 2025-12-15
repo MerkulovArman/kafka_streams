@@ -13,9 +13,10 @@ public class UserController {
     private final KafkaTemplate<String, User> kafkaTemplate;
 
     @PostMapping
-    public String sendUser(@RequestBody User user) {
-        kafkaTemplate.send("users-input", user.getName(), user);
-        return "User sent: " + user.getName() + " with balance: " + user.getBalance();
+    public String sendUser(@RequestBody UserRequest userRequest) {
+        kafkaTemplate.send("users-input", userRequest.getName(),
+                new User(userRequest.getName(), userRequest.getPhone(), userRequest.getBalance()));
+        return "User sent: " + userRequest.getName() + " with balance: " + userRequest.getBalance();
     }
 
     @GetMapping("/test")
