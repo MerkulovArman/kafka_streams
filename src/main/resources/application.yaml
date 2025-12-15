@@ -1,0 +1,43 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: kafka-streams-user
+
+  kafka:
+    bootstrap-servers: localhost:9092
+
+    streams:
+      application-id: user-balance-processor
+      properties:
+        commit.interval.ms: 1000
+        cache.max.bytes.buffering: 0
+
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "org.example.kafka_streams.model"
+# SpringDoc OpenAPI Configuration
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    operations-sorter: method
+    tags-sorter: alpha
+    try-it-out-enabled: true
+    display-request-duration: true
+  show-actuator: false
+
+logging:
+  level:
+    com.example.kafkastreamsuser: INFO
+    org.apache.kafka: WARN

@@ -1,0 +1,103 @@
+package org.example.kafka_streams;
+
+import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.common.serialization.StringDeserializer;
+import org.apache.kafka.common.serialization.StringSerializer;
+import org.example.kafka_streams.model.User;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
+import org.springframework.kafka.core.DefaultKafkaProducerFactory;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.support.serializer.JsonDeserializer;
+import org.springframework.kafka.support.serializer.JsonSerializer;
+import org.springframework.kafka.test.EmbeddedKafkaBroker;
+import org.springframework.kafka.test.utils.KafkaTestUtils;
+
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
+
+@KafkaStreamsIntegrationTest
+class UserBalanceProcessorIntegrationTest {
+
+    @Autowired
+    private EmbeddedKafkaBroker embeddedKafka;
+
+    private KafkaTemplate<String, User> kafkaTemplate;
+    private org.apache.kafka.clients.consumer.Consumer<String, User> outputConsumer;
+    private org.apache.kafka.clients.consumer.Consumer<String, User> errorConsumer;
+
+    @BeforeEach
+    void setUp() {
+        // Проверяем, что embeddedKafka не null
+        assertThat(embeddedKafka).isNotNull();
+
+        // Настраиваем продюсера
+        Map<String, Object> producerProps = KafkaTestUtils.producerProps(embeddedKafka);
+        producerProps.put("key.serializer", StringSerializer.class);
+        producerProps.put("value.serializer", JsonSerializer.class);
+
+        kafkaTemplate = new KafkaTemplate<>(
+                new DefaultKafkaProducerFactory<>(producerProps)
+        );
+
+        // Настраиваем консьюмеры
+        Map<String, Object> consumerProps = new HashMap<>();
+        consumerProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, embeddedKafka.getBrokersAsString());
+        consumerProps.put(ConsumerConfig.GROUP_ID_CONFIG, "test-group");
+        consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        consumerProps.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+        consumerProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class);
+        consumerProps.put(JsonDeserializer.TRUSTED_PACKAGES, "*");
+        consumerProps.put(JsonDeserializer.VALUE_DEFAULT_TYPE, "org.example.kafka_streams.model.User");
+
+        outputConsumer = new DefaultKafkaConsumerFactory<String, User>(consumerProps).createConsumer();
+        errorConsumer = new DefaultKafkaConsumerFactory<String, User>(consumerProps).createConsumer();
+
+        outputConsumer.subscribe(Collections.singletonList("users-output"));
+        errorConsumer.subscribe(Collections.singletonList("users-error"));
+    }
+
+    @Test
+    void whenPositiveBalanceUserSent_thenGoesToOutputTopic() throws ExecutionException, InterruptedException {
+        // Given
+        User user = new User("Alice", "+79161234567", 1500.75);
+
+        // When
+        kafkaTemplate.send("users-input", user.getName(), user).get();
+
+        // Then
+        await().atMost(java.time.Duration.ofSeconds(10))
+                .untilAsserted(() -> {
+                    ConsumerRecord<String, User> record = KafkaTestUtils.getSingleRecord(outputConsumer, "users-output");
+                    assertThat(record).isNotNull();
+                    assertThat(record.value().getName()).isEqualTo("Alice");
+                    assertThat(record.value().getBalance()).isEqualTo(1500.75);
+                });
+    }
+
+    @Test
+    void whenNegativeBalanceUserSent_thenGoesToErrorTopic() throws ExecutionException, InterruptedException {
+        // Given
+        User user = new User("Bob", "+79039876543", -500.0);
+
+        // When
+        kafkaTemplate.send("users-input", user.getName(), user).get();
+
+        // Then
+        await().atMost(java.time.Duration.ofSeconds(10))
+                .untilAsserted(() -> {
+                    ConsumerRecord<String, User> record = KafkaTestUtils.getSingleRecord(errorConsumer, "users-error");
+                    assertThat(record).isNotNull();
+                    assertThat(record.value().getName()).isEqualTo("Bob");
+                    assertThat(record.value().getBalance()).isEqualTo(-500.0);
+                });
+    }
+}
