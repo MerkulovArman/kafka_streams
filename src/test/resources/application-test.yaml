@@ -1,0 +1,23 @@
+spring:
+  kafka:
+    schema-registry-url: mock://test-url
+    bootstrap-servers: ${spring.embedded.kafka.brokers}
+
+    streams:
+      application-id: test-user-avro-processor
+      properties:
+        schema.registry.url: mock://test-url
+        specific.avro.reader: true
+
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: io.confluent.kafka.serializers.KafkaAvroSerializer
+      properties:
+        schema.registry.url: mock://test-url
+
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: io.confluent.kafka.serializers.KafkaAvroDeserializer
+      properties:
+        schema.registry.url: mock://test-url
+        specific.avro.reader: true

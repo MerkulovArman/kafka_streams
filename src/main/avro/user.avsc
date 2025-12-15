@@ -1,0 +1,19 @@
+{
+  "namespace": "org.example.kafka_streams.model",
+  "type": "record",
+  "name": "User",
+  "fields": [
+    {
+      "name": "name",
+      "type": "string"
+    },
+    {
+      "name": "phone",
+      "type": "string"
+    },
+    {
+      "name": "balance",
+      "type": "double"
+    }
+  ]
+}

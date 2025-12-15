@@ -1,5 +1,6 @@
 package org.example.kafka_streams;
 
+import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.common.serialization.Serdes;
@@ -7,7 +8,6 @@ import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.kstream.*;
 import org.example.kafka_streams.model.User;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.kafka.support.serializer.JsonSerde;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -15,13 +15,13 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class UserBalanceProcessor {
 
-    private final JsonSerde<User> userSerde;
+    private final SpecificAvroSerde<User> userAvroSerde;
 
     @Autowired
     public void process(StreamsBuilder streamsBuilder) {
         KStream<String, User> inputStream = streamsBuilder
                 .stream("users-input",
-                        Consumed.with(Serdes.String(), userSerde));
+                        Consumed.with(Serdes.String(), userAvroSerde));
 
         log.info("Configured Kafka Streams pipeline for user processing");
 
@@ -31,12 +31,12 @@ public class UserBalanceProcessor {
         BranchedKStream<String, User> branched = inputStream.split(Named.as("branch-"));
 
         branched.branch(
-                (key, user) -> user.getBalance() != null && user.getBalance() > 0.0,
+                (key, user) -> user.getBalance() > 0.0,
                 Branched.withConsumer(this::processPositiveBalance)
         );
 
         branched.branch(
-                (key, user) -> user.getBalance() == null || user.getBalance() <= 0.0,
+                (key, user) -> user.getBalance() <= 0.0,
                 Branched.withConsumer(this::processNonPositiveBalance)
         );
     }
@@ -48,7 +48,7 @@ public class UserBalanceProcessor {
                             user.getName(), user.getBalance());
                     return user;
                 })
-                .to("users-output", Produced.with(Serdes.String(), userSerde));
+                .to("users-output", Produced.with(Serdes.String(), userAvroSerde));
     }
 
     private void processNonPositiveBalance(KStream<String, User> nonPositiveStream) {
@@ -63,6 +63,6 @@ public class UserBalanceProcessor {
                     log.warn(message);
                     return user;
                 })
-                .to("users-error", Produced.with(Serdes.String(), userSerde));
+                .to("users-error", Produced.with(Serdes.String(), userAvroSerde));
     }
 }

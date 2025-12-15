@@ -1,5 +1,7 @@
 package org.example.kafka_streams;
 
+import io.confluent.kafka.serializers.KafkaAvroDeserializer;
+import io.confluent.kafka.serializers.KafkaAvroSerializer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -42,7 +44,9 @@ class UserBalanceProcessorIntegrationTest {
         // Настраиваем продюсера
         Map<String, Object> producerProps = KafkaTestUtils.producerProps(embeddedKafka);
         producerProps.put("key.serializer", StringSerializer.class);
-        producerProps.put("value.serializer", JsonSerializer.class);
+        producerProps.put("value.serializer", KafkaAvroSerializer.class);
+        producerProps.put("schema.registry.url", "mock://test-url");
+        producerProps.put("auto.register.schemas", "false");
 
         kafkaTemplate = new KafkaTemplate<>(
                 new DefaultKafkaProducerFactory<>(producerProps)
@@ -54,9 +58,10 @@ class UserBalanceProcessorIntegrationTest {
         consumerProps.put(ConsumerConfig.GROUP_ID_CONFIG, "test-group");
         consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         consumerProps.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-        consumerProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class);
-        consumerProps.put(JsonDeserializer.TRUSTED_PACKAGES, "*");
-        consumerProps.put(JsonDeserializer.VALUE_DEFAULT_TYPE, "org.example.kafka_streams.model.User");
+        consumerProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, KafkaAvroDeserializer.class);
+        consumerProps.put("schema.registry.url", "mock://test-url");
+        consumerProps.put("specific.avro.reader", "true");
+        producerProps.put("auto.register.schemas", "false");
 
         outputConsumer = new DefaultKafkaConsumerFactory<String, User>(consumerProps).createConsumer();
         errorConsumer = new DefaultKafkaConsumerFactory<String, User>(consumerProps).createConsumer();
